@@ -1,0 +1,360 @@
+import sqlite3
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+import csv
+
+# Establishing connection to SQLite database
+conn = sqlite3.connect('inventory.db')
+cursor = conn.cursor()
+
+# Creating users table if it doesn't exist
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    )
+''')
+conn.commit()
+
+# Creating products table if it doesn't exist
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        price REAL NOT NULL
+    )
+''')
+conn.commit()
+
+class InventoryApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Professional Inventory Management System")
+        self.root.geometry("1200x800")
+        self.root.configure(bg="#f0f0f0")
+
+        self.create_login_frame()
+
+    def create_login_frame(self):
+        self.login_frame = tk.Frame(self.root, bg="#f0f0f0")
+        self.login_frame.place(relx=0.5, rely=0.5, anchor='center')
+
+        tk.Label(self.login_frame, text='Username:', font=('Arial', 14), bg="#f0f0f0").grid(row=0, column=0, padx=10, pady=10)
+        self.username_entry = tk.Entry(self.login_frame, font=('Arial', 14))
+        self.username_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        tk.Label(self.login_frame, text='Password:', font=('Arial', 14), bg="#f0f0f0").grid(row=1, column=0, padx=10, pady=10)
+        self.password_entry = tk.Entry(self.login_frame, font=('Arial', 14), show='*')
+        self.password_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        self.login_btn = tk.Button(self.login_frame, text='Login', font=('Arial', 14), bg='#007BFF', fg='white', command=self.login)
+        self.login_btn.grid(row=2, column=0, columnspan=2, pady=20)
+
+        self.register_btn = tk.Button(self.login_frame, text='Register', font=('Arial', 14), bg='#28A745', fg='white', command=self.register)
+        self.register_btn.grid(row=3, column=0, columnspan=2, pady=10)
+
+    def login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        if not (username and password):
+            messagebox.showerror('Error', 'Please enter both username and password.')
+            return
+
+        cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+        user = cursor.fetchone()
+
+        if user:
+            self.login_frame.destroy()
+            self.create_main_frame()
+        else:
+            messagebox.showerror('Login Failed', 'Invalid username or password.')
+
+    def register(self):
+        def register_user():
+            new_username = username_entry.get()
+            new_password = password_entry.get()
+            confirm_password = confirm_password_entry.get()
+
+            if not (new_username and new_password and confirm_password):
+                messagebox.showerror('Error', 'Please fill in all fields.')
+                return
+
+            if new_password != confirm_password:
+                messagebox.showerror('Error', 'Passwords do not match.')
+                return
+
+            try:
+                cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (new_username, new_password))
+                conn.commit()
+                messagebox.showinfo('Success', 'Registration successful.')
+                register_window.destroy()
+            except sqlite3.IntegrityError:
+                messagebox.showerror('Error', 'Username already exists.')
+
+        register_window = tk.Toplevel(self.root)
+        register_window.title('Register')
+        register_window.geometry('400x300')
+        register_window.configure(bg="#f0f0f0")
+
+        tk.Label(register_window, text='Username:', font=('Arial', 14), bg="#f0f0f0").grid(row=0, column=0, padx=10, pady=10)
+        username_entry = tk.Entry(register_window, font=('Arial', 14))
+        username_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        tk.Label(register_window, text='Password:', font=('Arial', 14), bg="#f0f0f0").grid(row=1, column=0, padx=10, pady=10)
+        password_entry = tk.Entry(register_window, font=('Arial', 14), show='*')
+        password_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        tk.Label(register_window, text='Confirm Password:', font=('Arial', 14), bg="#f0f0f0").grid(row=2, column=0, padx=10, pady=10)
+        confirm_password_entry = tk.Entry(register_window, font=('Arial', 14), show='*')
+        confirm_password_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        tk.Button(register_window, text='Register', font=('Arial', 14), bg='#28A745', fg='white', command=register_user).grid(row=3, column=0, columnspan=2, pady=20)
+
+    def create_main_frame(self):
+        self.main_frame = tk.Frame(self.root, bg="#f0f0f0")
+        self.main_frame.pack(fill='both', expand=True)
+
+        self.create_menu()
+        self.create_dashboard()
+        self.create_product_table()
+        self.create_controls()
+
+    def create_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Export to CSV", command=self.export_to_csv)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.root.quit)
+
+    def create_dashboard(self):
+        self.dashboard_frame = tk.Frame(self.main_frame, bg="#007BFF", height=100)
+        self.dashboard_frame.pack(fill='x')
+
+        tk.Label(self.dashboard_frame, text="Inventory Dashboard", font=('Arial', 20, 'bold'), bg="#007BFF", fg='white').pack(pady=20)
+
+    def create_product_table(self):
+        self.table_frame = tk.Frame(self.main_frame, bg="#f0f0f0")
+        self.table_frame.pack(fill='both', expand=True, padx=20, pady=10)
+
+        # Labels and Entries for Product Details
+        tk.Label(self.table_frame, text='Product Name:', font=('Arial', 14), bg="#f0f0f0").grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.product_name_entry = tk.Entry(self.table_frame, font=('Arial', 14))
+        self.product_name_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        tk.Label(self.table_frame, text='Quantity:', font=('Arial', 14), bg="#f0f0f0").grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        self.quantity_entry = tk.Entry(self.table_frame, font=('Arial', 14))
+        self.quantity_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        tk.Label(self.table_frame, text='Price:', font=('Arial', 14), bg="#f0f0f0").grid(row=2, column=0, padx=10, pady=10, sticky='w')
+        self.price_entry = tk.Entry(self.table_frame, font=('Arial', 14))
+        self.price_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        # Vertical Separator
+        separator = ttk.Separator(self.table_frame, orient='vertical')
+        separator.grid(row=0, column=2, rowspan=3, sticky='ns', padx=10)
+
+        # Treeview to Display Products
+        self.tree = ttk.Treeview(self.table_frame, columns=('ID', 'Product Name', 'Quantity', 'Price'), show='headings', height=15)
+        self.tree.heading('ID', text='ID')
+        self.tree.heading('Product Name', text='Product Name')
+        self.tree.heading('Quantity', text='Quantity')
+        self.tree.heading('Price', text='Price')
+        self.tree.grid(row=0, column=3, rowspan=3, padx=10, pady=10, sticky='nsew')
+
+        self.tree.bind("<Double-1>", self.on_item_selected)
+
+        self.display_records()
+
+    def create_controls(self):
+        self.control_frame = tk.Frame(self.main_frame, bg="#f0f0f0", height=100)
+        self.control_frame.pack(fill='x')
+
+        self.search_entry = tk.Entry(self.control_frame, font=('Arial', 14))
+        self.search_entry.pack(side='left', padx=10, pady=20)
+
+        self.search_btn = tk.Button(self.control_frame, text='Search', font=('Arial', 14), bg='#17A2B8', fg='white', command=self.search_product)
+        self.search_btn.pack(side='left', padx=10)
+
+        self.add_btn = tk.Button(self.control_frame, text='Add Product', font=('Arial', 14), bg='#007BFF', fg='white', command=self.add_product)
+        self.add_btn.pack(side='left', padx=10)
+
+        self.edit_btn = tk.Button(self.control_frame, text='Edit Product', font=('Arial', 14), bg='#FFC107', fg='white', command=self.edit_product)
+        self.edit_btn.pack(side='left', padx=10)
+
+        self.delete_btn = tk.Button(self.control_frame, text='Delete Product', font=('Arial', 14), bg='#DC3545', fg='white', command=self.delete_product)
+        self.delete_btn.pack(side='left', padx=10)
+
+        self.low_stock_btn = tk.Button(self.control_frame, text='Low Stock Report', font=('Arial', 14), bg='#28A745', fg='white', command=self.low_stock_report)
+        self.low_stock_btn.pack(side='left', padx=10)
+
+        self.sales_summary_btn = tk.Button(self.control_frame, text='Sales Summary', font=('Arial', 14), bg='#6C757D', fg='white', command=self.sales_summary)
+        self.sales_summary_btn.pack(side='left', padx=10)
+
+    def on_item_selected(self, event):
+        selected_item = self.tree.focus()
+        if selected_item:
+            item_values = self.tree.item(selected_item, 'values')
+            self.product_name_entry.delete(0, tk.END)
+            self.product_name_entry.insert(0, item_values[1])
+            self.quantity_entry.delete(0, tk.END)
+            self.quantity_entry.insert(0, item_values[2])
+            self.price_entry.delete(0, tk.END)
+            self.price_entry.insert(0, item_values[3])
+
+    def add_product(self):
+        name = self.product_name_entry.get()
+        quantity = self.quantity_entry.get()
+        price = self.price_entry.get()
+
+        if not (name and quantity and price):
+            messagebox.showerror('Error', 'Please fill in all fields.')
+            return
+
+        try:
+            quantity = int(quantity)
+            price = float(price)
+        except ValueError:
+            messagebox.showerror('Error', 'Quantity and Price must be numeric.')
+            return
+
+        try:
+            cursor.execute("INSERT INTO products (name, quantity, price) VALUES (?, ?, ?)", (name, quantity, price))
+            conn.commit()
+            self.display_records()
+            messagebox.showinfo('Success', 'Product added successfully.')
+            self.clear_entries()
+        except sqlite3.Error as e:
+            messagebox.showerror('Error', f'Error occurred: {e}')
+
+    def edit_product(self):
+        selected_item = self.tree.focus()
+        if not selected_item:
+            messagebox.showerror('Error', 'Please select a product to edit.')
+            return
+
+        name = self.product_name_entry.get()
+        quantity = self.quantity_entry.get()
+        price = self.price_entry.get()
+
+        if not (name and quantity and price):
+            messagebox.showerror('Error', 'Please fill in all fields.')
+            return
+
+        try:
+            quantity = int(quantity)
+            price = float(price)
+        except ValueError:
+            messagebox.showerror('Error', 'Quantity and Price must be numeric.')
+            return
+
+        product_id = self.tree.item(selected_item, 'values')[0]
+
+        try:
+            cursor.execute("UPDATE products SET name = ?, quantity = ?, price = ? WHERE id = ?", (name, quantity, price, product_id))
+            conn.commit()
+            self.display_records()
+            messagebox.showinfo('Success', 'Product updated successfully.')
+            self.clear_entries()
+        except sqlite3.Error as e:
+            messagebox.showerror('Error', f'Error occurred: {e}')
+
+    def delete_product(self):
+        selected_item = self.tree.focus()
+        if not selected_item:
+            messagebox.showerror('Error', 'Please select a product to delete.')
+            return
+
+        product_id = self.tree.item(selected_item, 'values')[0]
+
+        try:
+            cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
+            conn.commit()
+            self.display_records()
+            messagebox.showinfo('Success', 'Product deleted successfully.')
+            self.clear_entries()
+        except sqlite3.Error as e:
+            messagebox.showerror('Error', f'Error occurred: {e}')
+
+    def display_records(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        cursor.execute("SELECT * FROM products")
+        for row in cursor.fetchall():
+            self.tree.insert('', 'end', values=row)
+
+    def clear_entries(self):
+        self.product_name_entry.delete(0, tk.END)
+        self.quantity_entry.delete(0, tk.END)
+        self.price_entry.delete(0, tk.END)
+
+    def low_stock_report(self):
+        low_stock_window = tk.Toplevel(self.root)
+        low_stock_window.title('Low Stock Report')
+        low_stock_window.geometry('600x400')
+
+        low_stock_tree = ttk.Treeview(low_stock_window, columns=('ID', 'Product Name', 'Quantity', 'Price'), show='headings')
+        low_stock_tree.heading('ID', text='ID')
+        low_stock_tree.heading('Product Name', text='Product Name')
+        low_stock_tree.heading('Quantity', text='Quantity')
+        low_stock_tree.heading('Price', text='Price')
+        low_stock_tree.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
+
+        cursor.execute("SELECT * FROM products WHERE quantity < 10")
+        for row in cursor.fetchall():
+            low_stock_tree.insert('', 'end', values=row)
+
+    def sales_summary(self):
+        sales_window = tk.Toplevel(self.root)
+        sales_window.title('Sales Summary')
+        sales_window.geometry('600x400')
+
+        sales_tree = ttk.Treeview(sales_window, columns=('ID', 'Product Name', 'Quantity', 'Price'), show='headings')
+        sales_tree.heading('ID', text='ID')
+        sales_tree.heading('Product Name', text='Product Name')
+        sales_tree.heading('Quantity', text='Quantity')
+        sales_tree.heading('Price', text='Price')
+        sales_tree.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
+
+        cursor.execute("SELECT * FROM products")
+        for row in cursor.fetchall():
+            sales_tree.insert('', 'end', values=row)
+
+    def export_to_csv(self):
+        file_path = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV files', '*.csv'), ('All files', '*.*')])
+        if file_path:
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['ID', 'Product Name', 'Quantity', 'Price'])
+                cursor.execute("SELECT * FROM products")
+                for row in cursor.fetchall():
+                    writer.writerow(row)
+            messagebox.showinfo('Success', 'Data exported successfully.')
+
+    def search_product(self):
+        search_term = self.search_entry.get()
+        if not search_term:
+            messagebox.showerror('Error', 'Please enter a search term.')
+            return
+
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        cursor.execute("SELECT * FROM products WHERE name LIKE ?", ('%' + search_term + '%',))
+        for row in cursor.fetchall():
+            self.tree.insert('', 'end', values=row)
+
+# Main Application
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = InventoryApp(root)
+    root.mainloop()
+
+# Closing the database connection
+conn.close()
