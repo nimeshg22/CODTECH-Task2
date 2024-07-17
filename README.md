@@ -1,5 +1,16 @@
+Name: NIMESH GADHAVI
 
+Company: COOTECH IT SOLUTbONS
 
+ID: :CT6WDS164 
+
+Domain:PYTHON PROGRAMMING 
+
+Duration:JUNE to JULY 2024
+
+Mentor: SRAVAN GOUNI
+
+project:INVENTORY MANAGEMENT SYSTEM
 
 Project Overview:
 The Inventory Management System is designed to efficiently track and manage inventory for businesses. It provides functionalities to add, edit, delete, and search products, as well as generate reports for low stock items and sales summaries. Users can register/login to access the system securely.
